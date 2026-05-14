@@ -1,0 +1,79 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    body{font-family:system-ui,Segoe UI,Roboto;margin:10px;width:260px}
+    input{width:100%;padding:8px;margin-bottom:8px}
+    button{padding:8px 10px;margin-right:6px}
+    .list{font-size:14px;color:#222}
+  </style>
+</head>
+<body>
+  <input id="emojiInput" placeholder="Add emojis (Enter to add)" />
+  <div style="margin-bottom:8px">
+    <button id="add">Add</button>
+    <button id="toggle">Toggle</button>
+    <button id="clear">Clear</button>
+  </div>
+  <div>Saved emojis:</div>
+  <div class="list" id="list"></div>
+
+<script>
+const storage = (typeof browser !== 'undefined' ? browser.storage : chrome.storage);
+const MAX = 50;
+const input = document.getElementById('emojiInput');
+const addBtn = document.getElementById('add');
+const toggleBtn = document.getElementById('toggle');
+const clearBtn = document.getElementById('clear');
+const list = document.getElementById('list');
+
+function splitGraphemes(str){
+  if (!str) return [];
+  if (typeof Intl !== 'undefined' && Intl.Segmenter){
+    return Array.from(new Intl.Segmenter(undefined,{granularity:'grapheme'}).segment(str), s=>s.segment).filter(Boolean);
+  }
+  return Array.from(str).filter(Boolean);
+}
+function sanitizeAndExtract(s){
+  return splitGraphemes(s).filter(ch => /\p{Extended_Pictographic}/u.test(ch) || /\p{Emoji_Presentation}/u.test(ch) || /\p{Emoji_Component}/u.test(ch));
+}
+
+function renderList(emojis){
+  list.textContent = emojis.join(' ');
+}
+
+addBtn.addEventListener('click', ()=>{
+  const vals = sanitizeAndExtract(input.value || '');
+  if (!vals.length) return;
+  storage.local.get('emojiTrail_emojis', (res) => {
+    const arr = Array.isArray(res.emojiTrail_emojis) ? res.emojiTrail_emojis.slice() : [];
+    for (const v of vals){ if (arr.length >= MAX) break; arr.push(v); }
+    storage.local.set({ emojiTrail_emojis: arr }, () => {
+      renderList(arr);
+      input.value = '';
+    });
+  });
+});
+
+toggleBtn.addEventListener('click', ()=>{
+  storage.local.get('emojiTrail_active', (res) => {
+    const next = !res.emojiTrail_active;
+    storage.local.set({ emojiTrail_active: next }, () => { window.close(); });
+  });
+});
+
+clearBtn.addEventListener('click', ()=>{
+  storage.local.set({ emojiTrail_emojis: [], emojiTrail_active: false }, () => { renderList([]); window.close(); });
+});
+
+input.addEventListener('keydown', (e)=>{ if (e.key === 'Enter'){ addBtn.click(); } });
+
+// load
+storage.local.get(['emojiTrail_emojis'], (res) => {
+  const arr = Array.isArray(res.emojiTrail_emojis) ? res.emojiTrail_emojis : [];
+  renderList(arr);
+});
+</script>
+</body>
+</html>
